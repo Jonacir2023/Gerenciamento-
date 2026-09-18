@@ -404,6 +404,17 @@ function escapeHtml(str){
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// Comparação por data (não por instante): um prazo com vencimento hoje não é
+// atraso. Comparar timestamps (Date.now()) contra a meia-noite do prazo faz
+// qualquer prazo de hoje aparecer como atrasado a partir das 00h01.
+function hojeISO(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function diasAteVencimento(dataTerm){
+  if(!dataTerm)return null;
+  const term=new Date(dataTerm+'T00:00:00');
+  const hoje=new Date(hojeISO()+'T00:00:00');
+  return Math.round((term-hoje)/86400000);
+}
+
 const S={
   get(k){try{return JSON.parse(window.__storage.getItem('chk_'+k))}catch{return null}},
   set(k,v){window.__storage.setItem('chk_'+k,JSON.stringify(v))}
@@ -525,8 +536,8 @@ function atualizarContadores(){
   const fz=assuntos.filter(a=>a.status==='fazendo').length;
   const co=assuntos.filter(a=>a.status==='concluido').length;
   const ca=assuntos.filter(a=>a.status==='cancelado').length;
-  const hoje=Date.now();
-  const at=assuntos.filter(a=>a.status!=='concluido'&&a.status!=='cancelado'&&a.dataTerm&&new Date(a.dataTerm).getTime()<hoje).length;
+  const hojeStr=hojeISO();
+  const at=assuntos.filter(a=>a.status!=='concluido'&&a.status!=='cancelado'&&a.dataTerm&&a.dataTerm<hojeStr).length;
   const concluidos=assuntos.filter(a=>a.status==='concluido'&&a.concluidoEm&&a.criadoEm);
   const mediaD=concluidos.length?Math.round(concluidos.reduce((s,a)=>s+(a.concluidoEm-a.criadoEm)/86400000,0)/concluidos.length):0;
   document.getElementById('ci-novos').textContent=assuntos.length;
@@ -563,10 +574,9 @@ function statusLabel(s){
 }
 function aging(a){
   if(!a.dataTerm)return '';
-  const hoje=Date.now();
-  const term=new Date(a.dataTerm).getTime();
   if(a.status==='concluido')return '<span class="card-aging">✔</span>';
-  const dias=Math.round((term-hoje)/86400000);
+  if(a.status==='cancelado')return '<span class="card-aging">Cancelado</span>';
+  const dias=diasAteVencimento(a.dataTerm);
   if(dias<0)return `<span class="card-aging alert">${Math.abs(dias)}d atrasado</span>`;
   if(dias===0)return `<span class="card-aging alert">Vence hoje</span>`;
   return `<span class="card-aging">${dias}d restante</span>`;
@@ -912,8 +922,8 @@ function prepararImpressao(tipo){
   var fz=assuntos.filter(function(a){return a.status==='fazendo'}).length;
   var co=assuntos.filter(function(a){return a.status==='concluido'}).length;
   var ca=assuntos.filter(function(a){return a.status==='cancelado'}).length;
-  var hoje=Date.now();
-  var at=assuntos.filter(function(a){return a.status!=='concluido'&&a.status!=='cancelado'&&a.dataTerm&&new Date(a.dataTerm).getTime()<hoje}).length;
+  var hojeStr=hojeISO();
+  var at=assuntos.filter(function(a){return a.status!=='concluido'&&a.status!=='cancelado'&&a.dataTerm&&a.dataTerm<hojeStr}).length;
 
   var cols=[
     {status:'afazer',label:'A FAZER',cls:'kol-afazer'},
@@ -925,10 +935,9 @@ function prepararImpressao(tipo){
   var khtml=cols.map(function(c){
     var cards=assuntos.filter(function(a){return a.status===c.status});
     var cardsHtml=cards.length?cards.map(function(a){
-      var vence=a.dataTerm?new Date(a.dataTerm).getTime():null;
-      var diasR=vence?Math.round((vence-hoje)/86400000):null;
-      var atrasado=diasR!==null&&diasR<0&&a.status!=='concluido';
-      var prazoTxt=a.status==='concluido'?'Concluido':diasR===null?'':atrasado?(Math.abs(diasR)+'d atrasado'):(diasR+'d restante');
+      var diasR=a.dataTerm?diasAteVencimento(a.dataTerm):null;
+      var atrasado=diasR!==null&&diasR<0&&a.status!=='concluido'&&a.status!=='cancelado';
+      var prazoTxt=a.status==='concluido'?'Concluido':a.status==='cancelado'?'Cancelado':diasR===null?'':atrasado?(Math.abs(diasR)+'d atrasado'):(diasR+'d restante');
       return '<div class="card">'+
         '<div style="display:flex;justify-content:space-between">'+
           '<div class="card-title">'+escapeHtml(a.assunto)+'</div>'+
@@ -1041,9 +1050,10 @@ function renderResumo(){
   const base=filtrarPorPeriodo(assuntos,resumoTab);
   const af=base.filter(a=>a.status==='afazer').length;
   const co=base.filter(a=>a.status==='concluido').length;
-  const hoje=Date.now();
-  const at=base.filter(a=>a.status!=='concluido'&&a.dataTerm&&new Date(a.dataTerm).getTime()<hoje).length;
+  const hojeStr=hojeISO();
+  const at=base.filter(a=>a.status!=='concluido'&&a.status!=='cancelado'&&a.dataTerm&&a.dataTerm<hojeStr).length;
   const total=base.length;
+  const totalAtivo=base.filter(a=>a.status!=='cancelado').length;
   const concluidos=base.filter(a=>a.status==='concluido'&&a.concluidoEm&&a.criadoEm);
   const mediaD=concluidos.length?Math.round(concluidos.reduce((s,a)=>s+(a.concluidoEm-a.criadoEm)/86400000,0)/concluidos.length):0;
   const setorRanking={};
@@ -1063,11 +1073,11 @@ function renderResumo(){
       <div style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:10px">📊 Status Atual do Kanban</div>
       <div class="ksb-row">
         <div><div class="ksb-val blue">${af}</div><div class="ksb-lbl">🎯 A Fazer</div></div>
-        <div><div class="ksb-val yellow">${assuntos.filter(a=>a.status==='fazendo').length}</div><div class="ksb-lbl">⚡ Fazendo</div></div>
+        <div><div class="ksb-val yellow">${base.filter(a=>a.status==='fazendo').length}</div><div class="ksb-lbl">⚡ Fazendo</div></div>
         <div><div class="ksb-val green">${co}</div><div class="ksb-lbl">✅ Concluído</div></div>
       </div>
-      <div class="ksb-progress"><div class="ksb-progress-fill" style="width:${total?Math.round(co/total*100):0}%"></div></div>
-      <div class="ksb-pct">${total?Math.round(co/total*100):0}% concluído</div>
+      <div class="ksb-progress"><div class="ksb-progress-fill" style="width:${totalAtivo?Math.round(co/totalAtivo*100):0}%"></div></div>
+      <div class="ksb-pct">${totalAtivo?Math.round(co/totalAtivo*100):0}% concluído</div>
     </div>
     <div class="sec">
       <div class="sec-title">🏆 Ranking de Setores</div>
@@ -1083,12 +1093,11 @@ function renderResumo(){
     <div class="sec">
       <div class="sec-title">⏱️ Aging — Prazo por Assunto</div>
       ${base.length?base.map(a=>{
-        const vence=a.dataTerm?new Date(a.dataTerm).getTime():null;
-        const diasRestantes=vence?Math.round((vence-hoje)/86400000):null;
-        const atrasado=diasRestantes!==null&&diasRestantes<0&&a.status!=='concluido';
+        const diasRestantes=a.dataTerm?diasAteVencimento(a.dataTerm):null;
+        const atrasado=diasRestantes!==null&&diasRestantes<0&&a.status!=='concluido'&&a.status!=='cancelado';
         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">
           <span style="font-size:13px;font-weight:600;flex:1;padding-right:8px">${escapeHtml(a.assunto)}</span>
-          <span class="badge ${a.status==='concluido'?'badge-green':atrasado?'badge-red':'badge-gray'}">${a.status==='concluido'?'✔ Concluído':diasRestantes===null?'—':atrasado?`${Math.abs(diasRestantes)}d atraso`:`${diasRestantes}d restante`}</span>
+          <span class="badge ${a.status==='concluido'?'badge-green':a.status==='cancelado'?'badge-canceled':atrasado?'badge-red':'badge-gray'}">${a.status==='concluido'?'✔ Concluído':a.status==='cancelado'?'Cancelado':diasRestantes===null?'—':atrasado?`${Math.abs(diasRestantes)}d atraso`:`${diasRestantes}d restante`}</span>
         </div>`;
       }).join(''):'<div class="empty-state"><div class="empty-state-txt">Sem dados</div></div>'}
     </div>
@@ -1101,9 +1110,10 @@ function renderDashboard(){
   const co=assuntos.filter(a=>a.status==='concluido').length;
   const fz=assuntos.filter(a=>a.status==='fazendo').length;
   const total=assuntos.length;
-  const pct=total?Math.round(co/total*100):0;
-  const hoje=Date.now();
-  const at=assuntos.filter(a=>a.status!=='concluido'&&a.dataTerm&&new Date(a.dataTerm).getTime()<hoje).length;
+  const totalAtivo=assuntos.filter(a=>a.status!=='cancelado').length;
+  const pct=totalAtivo?Math.round(co/totalAtivo*100):0;
+  const hojeStr=hojeISO();
+  const at=assuntos.filter(a=>a.status!=='concluido'&&a.status!=='cancelado'&&a.dataTerm&&a.dataTerm<hojeStr).length;
   const setorDados={};
   assuntos.forEach(a=>{if(a.setor){if(!setorDados[a.setor])setorDados[a.setor]=0;setorDados[a.setor]++}});
   const cores=['var(--accent)','var(--yellow)','var(--green)','var(--blue)'];

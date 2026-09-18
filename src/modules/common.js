@@ -24,7 +24,7 @@ window.addEventListener('DOMContentLoaded',()=>{
 // realmente visível e restringe o overlay a essa fatia, mantendo o modal
 // sempre dentro da área visível.
 function gerFixModalPositioning(){
-  const overlays=Array.from(document.querySelectorAll('.modal-overlay'));
+  const overlays=Array.from(document.querySelectorAll('.modal-overlay,.config-modal'));
   if(!overlays.length)return;
   let frameEl;
   try{ frameEl=parent.document.getElementById('module-frame'); }
