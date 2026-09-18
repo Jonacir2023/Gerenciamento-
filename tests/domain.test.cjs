@@ -1,0 +1,20 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const {webcrypto}=require('node:crypto');
+const ctx={crypto:webcrypto,Intl,Date};vm.createContext(ctx);vm.runInContext(fs.readFileSync(__dirname+'/../src/core.js','utf8'),ctx);
+const c=ctx.GerenciamentoCore;let count=0;
+function test(name,fn){fn();count++;console.log('PASS '+name);}
+const task=(s,changes={})=>({...s.tasks[0],id:'new',...changes});
+test('cancelado não entra no atraso nem nos concluídos',()=>{const s=c.seed();const t=s.tasks.find(t=>t.status==='cancelado');assert.equal(c.overdue(t),false);assert.equal(c.active(t),false);assert.notEqual(t.status,'concluido');});
+test('prazo de hoje não é atraso',()=>{const s=c.seed();const t=s.tasks.find(t=>t.id==='t1');assert.equal(c.overdue(t,t.due),false);});
+test('estado desconhecido é rejeitado',()=>{const s=c.seed();assert.throws(()=>c.saveTask(s,task(s,{status:'desconhecido'})),/Estado desconhecido/);});
+test('cancelamento exige motivo e mantém estado cancelado',()=>{const s=c.seed(),t=task(s,{status:'cancelado'});assert.throws(()=>c.saveTask(s,t),/justificativa/);c.saveTask(s,t,'Mudança de frente');assert.equal(s.tasks.at(-1).status,'cancelado');});
+test('reabertura exige motivo',()=>{const s=c.seed(),t={...s.tasks.find(x=>x.status==='concluido'),status:'afazer'};assert.throws(()=>c.saveTask(s,t),/justificativa/);c.saveTask(s,t,'Revisar execução');assert.equal(s.tasks.find(x=>x.id===t.id).status,'afazer');});
+test('edição não transfere tarefa entre obras',()=>{const s=c.seed();assert.throws(()=>c.saveTask(s,{...s.tasks[0],obraId:'demo-b'}),/transferir/);});
+test('ata não muda após editar demanda',()=>{const s=c.seed(),m=c.saveMeeting(s,{obraId:'demo-a',title:'Reunião',date:'2026-09-15',time:'07:00',participants:'Equipe',decisions:'Conferir',taskIds:['t0']});const before=JSON.stringify(m.snapshot);c.saveTask(s,{...s.tasks[0],title:'Título atualizado'});assert.equal(JSON.stringify(m.snapshot),before);});
+test('ata rejeita demanda de outra obra',()=>{const s=c.seed();assert.throws(()=>c.saveMeeting(s,{obraId:'demo-b',title:'Reunião',date:'2026-09-15',time:'07:00',participants:'Equipe',taskIds:['t0']}),/incompatível/);});
+test('RDO mantém os 25 campos e ausência não vira zero ou clima',()=>{const s=c.seed();const r=c.saveRdo(s,{id:'r1',obraId:'demo-a',fields:{Data:'2026-09-15',Apontador:'Teste','Atividades do Dia':'Atividade'}});assert.equal(Object.keys(r.fields).length,25);assert.equal(r.fields['Tempo/Clima'],'');assert.equal(r.fields['Efetivo Total'],'');assert.equal(r.fields.Obra,'Obra Horizonte');});
+test('contribuições no mesmo dia e autor não se sobrescrevem',()=>{const s=c.seed(),fields={Data:'2026-09-15',Apontador:'Teste','Atividades do Dia':'Atividade'};for(const [id,obraId] of [['r1','demo-a'],['r2','demo-a'],['r3','demo-b']])c.saveRdo(s,{id,obraId,fields});assert.equal(s.rdos.length,3);assert.equal(s.rdos.filter(x=>x.obraId==='demo-a').length,2);});
+test('efetivo negativo e fracionário rejeitados',()=>{const s=c.seed();for(const n of [-1,1.5])assert.throws(()=>c.saveRdo(s,{id:'r',obraId:'demo-a',fields:{Data:'2026-09-15',Apontador:'Teste','Atividades do Dia':'Atividade','Efetivo Total':n}}),/Efetivo/);});
+console.log(`${count} cenários de domínio aprovados. Não substituem homologação de navegador ou produção.`);
