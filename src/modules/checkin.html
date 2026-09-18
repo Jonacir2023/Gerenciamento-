@@ -652,6 +652,59 @@ async function sincronizarComGoogle(assunto) {
   }
 }
 
+// Criar/editar/excluir pelo Cadastro do Check-in não tinham contraparte
+// remota nenhuma no aplicativo original (só a mudança de status, via
+// sincronizarComGoogle, chegava à planilha) — completa o mesmo contrato
+// que pauta.html já usa para criar.
+async function criarAssuntoGoogle(item) {
+  if (!APPS_SCRIPT_URL_PAUTA) return;
+  try {
+    const resp = await fetch(APPS_SCRIPT_URL_PAUTA + '?path=pauta&action=criar', {
+      method: 'POST',
+      body: JSON.stringify({
+        assunto: item.assunto, descricao: item.desc, criador: item.criador,
+        responsavel: item.resp, setor: item.setor,
+        prioridade: item.prioridade === 'alta' ? 'Alta' : item.prioridade === 'media' ? 'Média' : 'Baixa',
+        status: item.status === 'afazer' ? 'Aberta' : item.status === 'fazendo' ? 'Em Andamento' : item.status === 'cancelado' ? 'Cancelado' : 'Concluído',
+        data_lancamento: item.dataLanc, data_termino: item.dataTerm
+      })
+    });
+    const data = await resp.json();
+    if (data.ok && data.id) {
+      const idx = assuntos.findIndex(a => a.id === item.id);
+      if (idx >= 0) { assuntos[idx].id = data.id; S.set('assuntos', assuntos); renderKanbanCheckin(); renderCadastro(); }
+    }
+  } catch (err) { console.error('Erro criar assunto no Google Sheets:', err); }
+}
+async function atualizarAssuntoGoogle(item) {
+  if (!APPS_SCRIPT_URL_PAUTA) return;
+  try {
+    const resp = await fetch(APPS_SCRIPT_URL_PAUTA + '?path=pauta&action=atualizar', {
+      method: 'POST',
+      body: JSON.stringify({
+        id: item.id, assunto: item.assunto, descricao: item.desc, criador: item.criador,
+        responsavel: item.resp, setor: item.setor,
+        prioridade: item.prioridade === 'alta' ? 'Alta' : item.prioridade === 'media' ? 'Média' : 'Baixa',
+        status: item.status === 'afazer' ? 'Aberta' : item.status === 'fazendo' ? 'Em Andamento' : item.status === 'cancelado' ? 'Cancelado' : 'Concluído',
+        data_lancamento: item.dataLanc, data_termino: item.dataTerm
+      })
+    });
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.error);
+  } catch (err) { console.error('Erro atualizar assunto no Google Sheets:', err); }
+}
+async function excluirAssuntoGoogle(id) {
+  if (!APPS_SCRIPT_URL_PAUTA) return;
+  try {
+    const resp = await fetch(APPS_SCRIPT_URL_PAUTA + '?path=pauta&action=excluir', {
+      method: 'POST',
+      body: JSON.stringify({ id })
+    });
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.error);
+  } catch (err) { console.error('Erro excluir assunto no Google Sheets:', err); }
+}
+
 async function salvarCheckInGoogle(reuniao) {
   if (!APPS_SCRIPT_URL_PAUTA) return;
   try {
@@ -808,19 +861,23 @@ function salvarAssunto(){
     dataLanc:document.getElementById('a-data-lanc').value,
     dataTerm:document.getElementById('a-data-term').value
   };
+  let novoItem=null;
   if(editId){
     const idx=assuntos.findIndex(x=>x.id==editId);
     if(idx>=0){
       if(dados.status==='concluido'&&assuntos[idx].status!=='concluido')dados.concluidoEm=Date.now();
       assuntos[idx]={...assuntos[idx],...dados};
+      novoItem=assuntos[idx];
     }
   } else {
-    assuntos.push({id:Date.now(),...dados,criadoEm:Date.now()});
+    novoItem={id:Date.now(),...dados,criadoEm:Date.now()};
+    assuntos.push(novoItem);
   }
   S.set('assuntos',assuntos);
   fecharModal('modal-assunto');
   renderCadastro();renderKanbanCheckin();atualizarContadores();
   notify('Assunto salvo!');
+  if(novoItem){ if(editId)atualizarAssuntoGoogle(novoItem); else criarAssuntoGoogle(novoItem); }
 }
 
 function removerAssunto(id){
@@ -829,6 +886,7 @@ function removerAssunto(id){
   S.set('assuntos',assuntos);
   renderCadastro();renderKanbanCheckin();atualizarContadores();
   notify('Removido','var(--red)');
+  excluirAssuntoGoogle(id);
 }
 
 function salvarReuniao(){

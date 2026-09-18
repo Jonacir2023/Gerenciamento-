@@ -82,6 +82,8 @@ function doPost(e) {
     if (body.path === 'backup') return salvarBackup(body);
     if (path === 'pauta'   && action === 'criar')            return criarPauta(body);
     if (path === 'pauta'   && action === 'atualizar-status') return atualizarStatusPauta(body);
+    if (path === 'pauta'   && action === 'atualizar')        return atualizarPauta(body);
+    if (path === 'pauta'   && action === 'excluir')          return excluirPauta(body);
     if (path === 'checkin' && action === 'salvar')           return salvarCheckIn(body);
     if (path === 'diario'  && action === 'salvar')           return salvarDiario(body);
     if (path === 'ia'      && action === 'perguntar')        return perguntarIA(body);
@@ -101,11 +103,20 @@ function listarPautas() {
   const pautas  = [];
   for (let i = 1; i < values.length; i++) {
     if (!values[i][0]) break;
+    if (values[i][12]) continue; // coluna 13 (Excluído) marcada — não devolve ao cliente
     const pauta = {};
     headers.forEach((h, j) => pauta[h] = values[i][j]);
     pautas.push(pauta);
   }
   return successResponse({ pautas });
+}
+
+// Garante o cabeçalho da coluna 13 antes de gravar exclusão — planilhas
+// criadas antes desta versão ainda não têm essa coluna.
+function garantirColunaExcluidaPauta(sheet) {
+  if (sheet.getRange(1, 13).getValue() !== 'Excluído') {
+    sheet.getRange(1, 13).setValue('Excluído');
+  }
 }
 
 function criarPauta(data) {
@@ -139,6 +150,46 @@ function atualizarStatusPauta(data) {
       sheet.getRange(i+1, 8).setValue(data.novo_status);
       sheet.getRange(i+1, 12).setValue(new Date().toISOString());
       return successResponse({ ok: true, status: data.novo_status });
+    }
+  }
+  return errorResponse('Pauta não encontrada');
+}
+
+// Edição completa dos campos (o app original só sincronizava status).
+// Só grava os campos presentes no corpo — não apaga o que não foi enviado.
+function atualizarPauta(data) {
+  const sheet = getSheet(SHEET_NAME_PAUTA);
+  if (!sheet) return errorResponse('Aba Pauta não encontrada');
+  const values = sheet.getDataRange().getValues();
+  const colunas = {
+    assunto: 2, descricao: 3, criador: 4, responsavel: 5, setor: 6,
+    prioridade: 7, status: 8, data_lancamento: 9, data_termino: 10
+  };
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0] === data.id) {
+      const linha = i + 1;
+      Object.keys(colunas).forEach(campo => {
+        if (data[campo] !== undefined) sheet.getRange(linha, colunas[campo]).setValue(data[campo]);
+      });
+      sheet.getRange(linha, 12).setValue(new Date().toISOString());
+      return successResponse({ ok: true, msg: 'Pauta atualizada' });
+    }
+  }
+  return errorResponse('Pauta não encontrada');
+}
+
+// Exclusão lógica — marca a coluna Excluído em vez de apagar a linha,
+// preservando o histórico na planilha.
+function excluirPauta(data) {
+  const sheet = getSheet(SHEET_NAME_PAUTA);
+  if (!sheet) return errorResponse('Aba Pauta não encontrada');
+  garantirColunaExcluidaPauta(sheet);
+  const values = sheet.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0] === data.id) {
+      sheet.getRange(i+1, 13).setValue(true);
+      sheet.getRange(i+1, 12).setValue(new Date().toISOString());
+      return successResponse({ ok: true, msg: 'Pauta excluída' });
     }
   }
   return errorResponse('Pauta não encontrada');

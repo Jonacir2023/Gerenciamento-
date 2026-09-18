@@ -508,6 +508,7 @@ function removerAssunto(id){
   S.set('assuntos', assuntos);
   renderListar();
   notify('Removido','var(--red)');
+  excluirPautaGoogle(id);
 }
 
 function limparAssuntos(){
@@ -566,6 +567,22 @@ async function atualizarStatusPautaGoogle(id, novoStatus) {
     if (!data.ok) throw new Error(data.error);
   } catch (err) {
     console.error('Erro atualizar status:', err);
+  }
+}
+
+// Remover no app original só apagava local — nunca chegava a excluir na
+// planilha, deixando o registro remoto "vivo" para sempre.
+async function excluirPautaGoogle(id) {
+  if (!APPS_SCRIPT_URL_PAUTA) return;
+  try {
+    const resp = await fetch(APPS_SCRIPT_URL_PAUTA + '?path=pauta&action=excluir', {
+      method: 'POST',
+      body: JSON.stringify({ id })
+    });
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.error);
+  } catch (err) {
+    console.error('Erro excluir pauta no Google Sheets:', err);
   }
 }
 

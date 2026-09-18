@@ -146,3 +146,35 @@ Não executado: teste em dispositivo móvel/tablet real (o canvas de assinatura 
 ponteiro, que cobrem mouse e toque, mas não foi testado em touch real); PDF com muitas fotos
 grandes (o corte de página é automático via divisão do canvas único em fatias de A4, não testado
 com conteúdo extremamente longo).
+
+## Validação — sincronização de criar/editar/excluir na Pauta e no Check-in (18/09/2026)
+
+Fecha um gap real do próprio aplicativo original (não introduzido pela adaptação): criar/editar
+pelo Cadastro do Check-in e remover em ambos os módulos nunca tinham contraparte remota — só a
+mudança de status chegava à planilha. Backend (`server/Gerenciamento.gs`): adiciona `path=pauta
+&action=atualizar` (edição completa dos campos presentes no corpo, sem apagar os que não foram
+enviados) e `path=pauta&action=excluir` (exclusão lógica — marca uma coluna "Excluído" em vez de
+apagar a linha; `listarPautas()` passa a pular essas linhas).
+
+Verificado:
+- `node --check` no `.gs` tratado como JavaScript puro: sem erro.
+- `node --check` nos scripts extraídos de `checkin.html` e `pauta.html`: sem erro.
+- `node tests/domain.test.cjs`: 11/11, sem regressão.
+- **Teste real em navegador (Playwright/Chromium) contra um stub HTTPS local** simulando o Apps
+  Script (certificado autoassinado, `ignore_https_errors` no contexto — a validação de URL do
+  Gerenciamento exige HTTPS, então o stub precisa ser HTTPS de verdade, não só HTTP). Fluxo
+  exercitado pela UI real, sem injeção de estado:
+  1. Configurada a URL do serviço pela tela de Conexões.
+  2. Pauta: `enviarAssunto()` pelo formulário real → `POST …action=criar` recebido com o payload
+     esperado. `removerAssunto()` pela lista → `POST …action=excluir` recebido.
+  3. Check-in (aba Cadastro): `salvarAssunto()` criando um assunto novo → `POST …action=criar`.
+     Reabrindo o mesmo assunto pelo botão de editar e salvando de novo → `POST …action=atualizar`
+     com o campo alterado (`descricao`) presente no corpo. `removerAssunto()` → `POST
+     …action=excluir`.
+  5 requisições, na ordem esperada, confirmadas pelo próprio stub (que loga path, query string e
+  corpo de cada uma). Sem `pageerror`.
+
+Não executado: contra um Apps Script implantado de verdade e uma planilha Google real (exigiria
+implantação, fora do escopo desta base local) — o teste comprova que o cliente monta e dispara a
+requisição certa, não que o Apps Script a processa exatamente como escrito (a sintaxe foi
+conferida, o comportamento em execução real não).

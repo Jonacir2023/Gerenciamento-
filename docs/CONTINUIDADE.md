@@ -67,3 +67,19 @@ continua só como ponte para planilha/Drive/backup, sem crescer para reimplement
 nenhuma tela foi ligada ao banco novo ainda. Migrar de fato (cliente Supabase no navegador,
 autenticação, trocar `gerRequest`/`window.__storage` por chamadas autenticadas com fila offline) é
 o próximo trabalho real, não uma tarefa de teste.
+
+## Atualização — 18/09/2026 (4ª rodada): sincronização de criar/editar/excluir
+
+Fechado o gap nº 2 da lista de pendências: criar/editar pelo Cadastro do Check-in e remover em
+Pauta e Check-in nunca tinham contraparte remota no aplicativo original — só a mudança de status
+chegava à planilha. Backend (`server/Gerenciamento.gs`) ganhou `path=pauta&action=atualizar`
+(edição completa) e `path=pauta&action=excluir` (exclusão lógica, coluna "Excluído"); os dois
+módulos passaram a chamar esses endpoints depois de salvar localmente. Testado ponta a ponta contra
+um stub HTTPS local simulando o Apps Script (não um Apps Script real implantado) — as 5
+requisições esperadas (criar/excluir na Pauta; criar/atualizar/excluir no Check-in) chegaram na
+ordem certa com o payload certo. Detalhe em `docs/VALIDACAO.md` e `docs/Matriz_de_Paridade.md`.
+
+Da lista de pendências desta sessão, restam: modelo de dados mais rico do Diário (clima por
+período, terceirizados, horímetro inicial/final, status por atividade — necessário para o PDF
+completo), WIP transacional no servidor, e os módulos M06–M13 inteiros. O item de backend segue
+como fundação (schema Supabase pronto, frontend ainda não ligado).
