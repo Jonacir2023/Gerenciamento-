@@ -43,3 +43,36 @@ Repetido e aprovado antes do commit inicial:
 **Outro bug de contagem corrigido (leitura de código, sem execução de UI para este caso específico):** em três lugares do Check-in (Resumo, Dashboard e aging por assunto), demandas **canceladas** com prazo vencido eram contadas como atrasadas, e o percentual "concluído" usava o total de assuntos (incluindo cancelados) como denominador. Ambos contrariam a regra "cancelado não conta como atraso nem como pendência ativa" já aplicada em `atualizarContadores()` (o contador fixo do cabeçalho) e no núcleo (`core.js`, testado). Alinhado às mesmas regras.
 
 Não executado nesta rodada: teste em dispositivo móvel/tablet, impressão real (PDF do navegador), captura PNG (`html2canvas`) ponta a ponta, Apps Script em execução real, autenticação/RBAC, sincronização entre dois dispositivos, backup/restauração completos, quota de armazenamento de fotos sob estresse. Continuam como pendência aberta, sem instrução para o próximo passo.
+
+## Validação — recuperação do Diário, área 1/7: Atividades Paralisadas e Veículos/Equipamentos Parados (18/09/2026)
+
+Após confirmar com o usuário que `referencias-originais/diario-obras-v4.html` (179 funções, ver
+`docs/Matriz_de_Paridade.md`) é a fonte de verdade, recuperada a primeira das 7 áreas ausentes: o
+campo oficial 19 do contrato do Diário ("Veículos/Equipamentos Parados") e o registro de atividades
+paralisadas com justificativa — nenhum dos dois tinha UI antes desta rodada.
+
+Verificado:
+- `python3 build.py`: gera as duas saídas (584.813 bytes cada).
+- `node --check` em todos os arquivos JS/HTML tocados (incluindo o script extraído de
+  `diario.html` isoladamente): sem erro.
+- `node tests/domain.test.cjs`: 11/11, sem regressão.
+- **Teste real em navegador (Playwright/Chromium), ponta a ponta**, pelo fluxo real de tela (sem
+  atalho de estado interno, já que `state`/`currentDay` são variáveis de módulo, não acessíveis de
+  fora do iframe):
+  1. Cadastrar atividade padrão pelo modal real (`abrirModalAtividade`/`salvarAtividade`).
+  2. Abrir o modal de atividade paralisada, selecionar a atividade recém-cadastrada, salvar com
+     justificativa — `currentDay.atividadesParalisadas` passa a ter 1 item, lista renderiza.
+  3. Editar a justificativa direto na lista (input inline) — persiste sem re-render perder o foco.
+  4. Lista de "Veículos/Equipamentos Parados" mostra os 5 equipamentos de exemplo (nenhum em uso
+     hoje), cada um com campo de justificativa; salvar uma justificativa persiste em
+     `currentDay.veiculosParados`.
+  5. `gerarRelatorio()` (texto real usado para copiar/WhatsApp) inclui as duas novas seções.
+  6. `gerBuildPayload()` (contrato oficial de 25 campos, `diary-extra.js`) grava a justificativa da
+     atividade paralisada dentro do campo `atividades`, e `veiculosParados` deixou de ser apenas
+     "equipamento em uso com status ≠ Operando" (interpretação estreita e diferente do campo 19
+     oficial) para refletir corretamente "equipamentos e veículos cadastrados sem uso hoje, com
+     motivo".
+- Sem `pageerror` durante o fluxo.
+
+Não executado: as outras 6 áreas da lista (apontador, PDF, assinatura, fotos com legenda/compressão,
+backup automático ao carregar, modal de IA) continuam pendentes, sem mudança nesta rodada.

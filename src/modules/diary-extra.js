@@ -42,7 +42,23 @@ async function gerPhotos(files){
   if(salvas&&!falhas)toast(`${salvas} foto(s) salva(s) neste navegador.`);
   else if(salvas)toast(`${salvas} foto(s) salva(s), ${falhas} não salva(s) — veja os avisos acima.`);
 }
-function gerBuildPayload(day=currentDay){const cat=state.colaboradores.categorias.flatMap(c=>c.itens),present=cat.filter(c=>day.efetivo[c.id]);const by={};present.forEach(c=>by[c.funcao]=(by[c.funcao]||0)+1);return {id:'diario-'+day.data,data:day.data,diaSemana:diaDaSemana(day.data),obra:state.obra.nome,empresa:state.obra.empresa,local:state.obra.local,localObra:day.localObra||'',descricaoLocal:day.descricaoLocal||'',tempo:tempoLabel(day.tempo,day.tempoVento),jornada:`Café ${day.cafeInicio}–${day.cafeFim}; almoço ${day.almocoInicio}–${day.almocoFim}; encerramento ${day.encerramento}`,dssHorario:day.dssHorario,dssMinistrou:day.dssMinistrou,dssTema:day.dssTema,atividades:state.atividades.filter(a=>day.atividadesMarcadas[a.id]).map(a=>`${a.desc} | ${a.local} | ${day.atividadesQtd?.[a.id]||''} ${a.unidade}`).concat((day.atividadesAvulsas||[]).map(a=>a.desc||JSON.stringify(a)),day.atividadesExtra||'').join('\n'),efetivoTotal:present.length,efetivoPorFuncao:JSON.stringify(by),colaboradoresPresentes:present.map(c=>`${c.mat} · ${c.nome} · ${c.funcao}`).join('\n'),equipamentos:JSON.stringify(day.equipamentos||{}),veiculosLeves:JSON.stringify(day.veiculosLeves||[]),veiculosParados:JSON.stringify(Object.fromEntries(Object.entries(day.equipamentos||{}).filter(([,v])=>v.status&&v.status!=='Operando'))),eventosSeguranca:JSON.stringify(day.eventosSeguranca||[]),eventosMeioAmbiente:JSON.stringify(day.eventosAmbiente||[]),observacoes:day.observacoes||'',apontador:day.apontador||'',fotos:(day.fotos||[]).filter(p=>p.url).map(p=>p.url).join('\n'),rdoNum:day.rdoNum||'',registroCompleto:JSON.parse(JSON.stringify(day))};}
+function gerBuildPayload(day=currentDay){
+  const cat=state.colaboradores.categorias.flatMap(c=>c.itens),present=cat.filter(c=>day.efetivo[c.id]);
+  const by={};present.forEach(c=>by[c.funcao]=(by[c.funcao]||0)+1);
+  const atividadesTexto=state.atividades.filter(a=>day.atividadesMarcadas[a.id]).map(a=>`${a.desc} | ${a.local} | ${day.atividadesQtd?.[a.id]||''} ${a.unidade}`)
+    .concat((day.atividadesAvulsas||[]).map(a=>a.desc||JSON.stringify(a)),day.atividadesExtra||'')
+    .concat((day.atividadesParalisadas||[]).length?['PARALISADAS: '+day.atividadesParalisadas.map(p=>`${p.desc} — ${p.just||'sem justificativa'}`).join('; ')]:[])
+    .join('\n');
+  // Campo 19 do contrato: equipamentos e veículos leves cadastrados sem uso hoje, com justificativa.
+  const parados=day.veiculosParados||{};
+  const equipsParados=state.equipamentos.filter(e=>!day.equipamentos?.[e.id]);
+  const vlParados=(state.veiculosFrota||[]).filter(v=>!(day.veiculosLeves||[]).some(x=>x.frotaId===v.id));
+  const veiculosParadosTexto=[
+    ...equipsParados.map(e=>`${e.numero?e.numero+' — ':''}${e.desc}${parados[e.id]?': '+parados[e.id]:''}`),
+    ...vlParados.map(v=>`${v.desc}${v.placa?' ('+v.placa+')':''}${parados[v.id]?': '+parados[v.id]:''}`)
+  ].join('\n');
+  return {id:'diario-'+day.data,data:day.data,diaSemana:diaDaSemana(day.data),obra:state.obra.nome,empresa:state.obra.empresa,local:state.obra.local,localObra:day.localObra||'',descricaoLocal:day.descricaoLocal||'',tempo:tempoLabel(day.tempo,day.tempoVento),jornada:`Café ${day.cafeInicio}–${day.cafeFim}; almoço ${day.almocoInicio}–${day.almocoFim}; encerramento ${day.encerramento}`,dssHorario:day.dssHorario,dssMinistrou:day.dssMinistrou,dssTema:day.dssTema,atividades:atividadesTexto,efetivoTotal:present.length,efetivoPorFuncao:JSON.stringify(by),colaboradoresPresentes:present.map(c=>`${c.mat} · ${c.nome} · ${c.funcao}`).join('\n'),equipamentos:JSON.stringify(day.equipamentos||{}),veiculosLeves:JSON.stringify(day.veiculosLeves||[]),veiculosParados:veiculosParadosTexto,eventosSeguranca:JSON.stringify(day.eventosSeguranca||[]),eventosMeioAmbiente:JSON.stringify(day.eventosAmbiente||[]),observacoes:day.observacoes||'',apontador:day.apontador||'',fotos:(day.fotos||[]).filter(p=>p.url).map(p=>p.url).join('\n'),rdoNum:day.rdoNum||'',registroCompleto:JSON.parse(JSON.stringify(day))};
+}
 async function gerAction(button,fn){button.disabled=true;try{const result=await fn();toast(result||'Operação concluída.');}catch(e){toast(e.message||'Falha na operação.');}finally{button.disabled=false;}}
 window.addEventListener('DOMContentLoaded',()=>{
  state.obra={...state.obra,...parent.GerenciamentoModules.getWork(__obraId)};atualizarHeader();

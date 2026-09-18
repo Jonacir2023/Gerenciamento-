@@ -120,7 +120,7 @@ Agrupando as 66 por área funcional (nome da função → o que ela fazia, pelo 
 | **Apontador (fluxo de seleção)** | `confirmarApontador`, `selecionarApontador`, `selecionarApontadorDireto`, `_apontadoresFiltrados`, `renderApontadorDia` (5) | No original, apontador é selecionado/confirmado por fluxo dedicado com sugestão; no adaptado é só um `<input>` de texto livre (`ger-apontador` em `diary-extra.js`) | `grep -ic apontador`: 43 no original, **1 no adaptado** |
 | **Backup/restauração na nuvem (fluxo original)** | `backupNuvem`, `restaurarNuvem`, `checarRestauracaoAutomatica`, `buildPayloadGoogle`, `salvarDiarioGoogle`, `carregarScriptUmaVez` (6) | O original verificava automaticamente se havia backup pra restaurar ao abrir; o adaptado tem um fluxo equivalente mas **diferente e manual** (`ger-cloud-backup`/`ger-cloud-restore` em `diary-extra.js`, sem checagem automática ao carregar) | Reimplementado, não idêntico — ver nota abaixo |
 | **Perguntar à IA** | `abrirModalPerguntar`, `enviarPergunta` (2) | Modal dedicado no original | Reimplementado como campo simples (`ger-question`/`ger-ask` em `diary-extra.js`) — não idêntico, mas cobre a mesma finalidade |
-| **Cadastro do dia (atividades/efetivo/equipamentos/veículos leves)** | `abrirAbaAtividades`, `abrirAbaEfetivo`, `abrirAbaEquipamentos`, `abrirAbaVeiculosLeves`, `marcarTodasAtividadesCheckbox`, `atualizarQtyLocalAtiv`, `qtdAtividadeDia`, `salvarAtividadesDodia`, `renderAtividadesDodiaCadastro`, `ordenarAtividadesPadrao`, `salvarStatusAtividade`, `salvarEquipDia`, `salvarVLDia`, `salvarEfetivoDia`, `salvarHorimetro`, `horimetroTotal`, `_todosColaboradores`, `_atualizarLocalObraDatalist`, `_atualizarEquipDescDatalist`, `_atualizarVLDescDatalist`, `_atualizarResumoObraNosDiario` (21) | Sub-navegação e handlers de salvamento por item dentro do cadastro diário — a maior categoria isolada | Precisa verificação tela a tela; risco alto de ser perda real de granularidade nos 25 campos |
+| **Cadastro do dia (atividades/efetivo/equipamentos/veículos leves)** — **corrigido abaixo, não é perda real** | `abrirAbaAtividades`, `abrirAbaEfetivo`, `abrirAbaEquipamentos`, `abrirAbaVeiculosLeves`, `marcarTodasAtividadesCheckbox`, `atualizarQtyLocalAtiv`, `qtdAtividadeDia`, `salvarAtividadesDodia`, `renderAtividadesDodiaCadastro`, `ordenarAtividadesPadrao`, `salvarStatusAtividade`, `salvarEquipDia`, `salvarVLDia`, `salvarEfetivoDia`, `salvarHorimetro`, `horimetroTotal`, `_todosColaboradores`, `_atualizarLocalObraDatalist`, `_atualizarEquipDescDatalist`, `_atualizarVLDescDatalist`, `_atualizarResumoObraNosDiario` (21) | Ver nota de correção logo abaixo desta tabela — a leitura inicial superestimou o risco | Nota de correção abaixo |
 | **Utilidades diversas** | `escHtml`, `escAttr`, `getHistoryKey`, `getStorageKey`, `dataAtiva`, `apareceVazio`, `pratLabel`, `copiarUltimoDiario`, `totalPrecipitacao`, `abrirRdoNoSafari`, `adicionarFotoDia`, `removerFotoDia`, `renderFotosDia`, `salvarLegendaFoto`, `comprimirFoto`, `salvarAtivFoto` (16) | Mistura de correções de compatibilidade (Safari), gestão de fotos com legenda/compressão (o adaptado tem fotos via `diary-extra.js`, mas sem legenda nem compressão), e utilidades de data/relatório | Parcialmente reimplementado (fotos existem, sem legenda/compressão/limite adaptativo) |
 
 **Nenhuma função nova foi criada no lado do Diário para cobrir essas 66** (diferente de Pauta e
@@ -132,6 +132,44 @@ simples em vez de modal).
 **Teste:** nenhum destes 66 pontos foi exercitado em navegador; a comparação acima é estática
 (diff/grep), não comportamental. Antes de declarar qualquer um deles "recuperado" é preciso abrir
 a tela e confirmar.
+
+### Correção — "Cadastro do dia" não era perda real (verificado após leitura do código, não só do nome)
+
+A tabela acima classificou essa categoria como "risco alto" só por contagem de nomes de função.
+Lendo o corpo de `abrirAbaAtividades`/`abrirAbaEfetivo`/`abrirAbaEquipamentos`/`abrirAbaVeiculosLeves`
+no original: são apenas **atalhos de navegação** — clicam na aba Cadastro, esperam 200ms, clicam na
+subaba certa. `salvarAtividadesDodia`/`salvarEfetivoDia`/`salvarEquipDia`/`salvarVLDia` só copiam
+dado de uma chave temporária (`ativDia_<data>` etc. no `localStorage`) para `currentDay` e navegam
+de volta à aba Diário. Essa indireção existia porque o original tinha duas telas separadas (Cadastro
+do dia ⇄ Diário) que precisavam se sincronizar.
+
+`src/modules/diario.html` **já tinha, antes desta sessão**, os equivalentes diretos — sob nomes
+diferentes, confirmados por leitura: `renderAtividadesDia`, `salvarQtdAtividade`, `renderEfetivoDia`,
+`renderEquipDia`, `abrirSeletorEquip`, `salvarHorimetro`-equivalente inline, `renderVeiculosLevesDia`,
+`abrirSeletorVL` — todos operando **direto dentro da aba Diário**, sem o ping-pong de telas. Ou
+seja: a arquitetura ficou mais simples (um passo em vez de dois), não mais pobre. Confirmado que
+quantidade por atividade (`atividadesQtd`), horímetro por equipamento e status Operando/Parado por
+equipamento já funcionavam antes desta sessão.
+
+**O que realmente faltava dentro dessa área**, e foi confirmado por leitura + depois recuperado e
+testado nesta sessão (ver `docs/VALIDACAO.md`, rodada de recuperação 1/7): `atividadesParalisadas`
+(atividade cadastrada marcada como parada, com justificativa — funções `renderAtivParalisadas`,
+`abrirModalAtivParalisada`, `salvarAtivParalisada`, `salvarJustAtivParalisada`, `removerAtivParalisada`)
+e `veiculosParados`/`renderVeiculosParados`/`salvarJustParado` (campo oficial 19 do contrato:
+equipamentos e veículos cadastrados sem uso no dia, com motivo) — isso sim não tinha nenhuma tela
+equivalente, nem com outro nome. Ambos recuperados e testados nesta sessão.
+
+## Status da recuperação (atualizado a cada área concluída)
+
+| Área | Status |
+|---|---|
+| 1. Atividades Paralisadas + Veículos/Equipamentos Parados (campo 19) | ✅ Recuperado e testado em navegador — ver `docs/VALIDACAO.md` |
+| 2. Fluxo de seleção de apontador (sugestão/confirmação) | Pendente |
+| 3. PDF do RDO | Pendente |
+| 4. Assinatura digital | Pendente |
+| 5. Fotos — legenda e compressão | Pendente |
+| 6. Backup na nuvem — checagem automática ao carregar | Pendente |
+| 7. Perguntar à IA — modal dedicado | Pendente (existe versão simplificada em campo de texto) |
 
 ---
 

@@ -1155,7 +1155,15 @@
     <label style="margin-top:14px">Observações / atividades avulsas (texto livre)</label>
     <textarea id="atividadesExtra" rows="3" placeholder="Outras atividades não cadastradas..."></textarea>
   </div>
-  
+
+  <div class="section">
+    <div class="section-title">
+      <div class="section-title-text">⏸️ Atividades Paralisadas</div>
+      <button class="icon-btn" onclick="abrirModalAtivParalisada()" title="Registrar paralisação">➕</button>
+    </div>
+    <div id="ativParalisadasList"></div>
+  </div>
+
   <div class="section">
     <div class="section-title"><div class="section-title-text">👷 Efetivo</div></div>
     <div class="stats-row cols-3">
@@ -1188,6 +1196,11 @@
       <button class="quick-btn" onclick="marcarTodosVL(false)">✗ Limpar</button>
     </div>
     <div id="veiculosLevesList"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><div class="section-title-text">🅿️ Veículos/Equipamentos Parados</div></div>
+    <div id="veiculosParadosList"></div>
   </div>
 
   <div class="section">
@@ -1612,6 +1625,21 @@
   </div>
 </div>
 
+<!-- Atividade paralisada -->
+<div class="modal-overlay" id="modalAtivParalisada">
+  <div class="modal">
+    <div class="modal-title">Registrar Atividade Paralisada</div>
+    <label>Atividade</label>
+    <select id="modalAtivParSel"></select>
+    <label>Justificativa</label>
+    <input type="text" id="modalAtivParJust" placeholder="Chuva, falta de material, aguardando liberação...">
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-ghost" onclick="fecharModal('modalAtivParalisada')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarAtivParalisada()">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Evento cadastro -->
 <div class="modal-overlay" id="modalEventoCad">
   <div class="modal">
@@ -1827,9 +1855,11 @@ const EMPTY_DAY = () => ({
   atividadesMarcadas: {},
   atividadesQtd: {},  // id -> quantidade executada
   atividadesAvulsas: [],
+  atividadesParalisadas: [],  // [{id, desc, just}] — atividade cadastrada parada, com justificativa
   efetivo: {},
   equipamentos: {},  // id -> {ativo, operadorMat, operadorNome, status, horimetro}
   veiculosLeves: [],  // [{id, desc, placa, motorista}]
+  veiculosParados: {},  // id (equipamento ou veículo da frota) -> justificativa
   eventosSeguranca: [],
   eventosAmbiente: []
 });
@@ -2106,8 +2136,10 @@ function salvarDiarioDia(notificar) {
     Object.keys(currentDay.atividadesMarcadas).length > 0 ||
     Object.keys(currentDay.atividadesQtd || {}).length > 0 ||
     currentDay.atividadesAvulsas.length > 0 ||
+    (currentDay.atividadesParalisadas || []).length > 0 ||
     Object.keys(currentDay.equipamentos).length > 0 ||
     (currentDay.veiculosLeves || []).length > 0 ||
+    Object.keys(currentDay.veiculosParados || {}).length > 0 ||
     currentDay.eventosSeguranca.length > 0 ||
     currentDay.eventosAmbiente.length > 0;
   if (temDado) {
@@ -2128,9 +2160,11 @@ function salvarDiarioDia(notificar) {
 // ============================================================
 function renderDiario() {
   renderAtividadesDia();
+  renderAtivParalisadas();
   renderEfetivoDia();
   renderEquipDia();
   renderVeiculosLevesDia();
+  renderVeiculosParados();
   renderEventosDia('seguranca');
   renderEventosDia('meio_ambiente');
 }
@@ -2252,6 +2286,75 @@ function salvarAtivExtra() {
   toast('Atividade adicionada');
 }
 
+function renderAtivParalisadas() {
+  const cont = document.getElementById('ativParalisadasList');
+  if (!cont) return;
+  const lista = currentDay.atividadesParalisadas || [];
+  if (!lista.length) {
+    cont.innerHTML = '<div class="empty">Nenhuma atividade paralisada hoje</div>';
+    return;
+  }
+  cont.innerHTML = lista.map((p, i) => `
+    <div class="item-row" style="flex-direction:column;align-items:stretch;gap:6px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="item-name">⏸️ ${escapeHtml(p.desc)}</div>
+        <button class="icon-btn" data-rm-ativpar="${i}" title="Remover">✕</button>
+      </div>
+      <input type="text" placeholder="Justificativa (chuva, falta de material, aguardando liberação...)"
+        value="${escapeHtml(p.just || '')}" data-just-ativpar="${i}">
+    </div>
+  `).join('');
+  cont.querySelectorAll('[data-just-ativpar]').forEach(el => {
+    el.addEventListener('input', () => salvarJustAtivParalisada(Number(el.dataset.justAtivpar), el.value));
+  });
+  cont.querySelectorAll('[data-rm-ativpar]').forEach(el => {
+    el.addEventListener('click', () => removerAtivParalisada(Number(el.dataset.rmAtivpar)));
+  });
+}
+
+function abrirModalAtivParalisada() {
+  const sel = document.getElementById('modalAtivParSel');
+  const jaParadas = new Set((currentDay.atividadesParalisadas || []).map(p => p.id));
+  const disponiveis = state.atividades.filter(a => !jaParadas.has(a.id));
+  if (!disponiveis.length) {
+    toast(state.atividades.length ? 'Todas as atividades cadastradas já estão paralisadas' : 'Cadastre atividades em ⚙️ Cadastro primeiro', 'var(--red)');
+    return;
+  }
+  sel.innerHTML = disponiveis.map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.desc)}</option>`).join('');
+  document.getElementById('modalAtivParJust').value = '';
+  abrirModal('modalAtivParalisada');
+}
+
+function salvarAtivParalisada() {
+  const id = document.getElementById('modalAtivParSel').value;
+  const just = document.getElementById('modalAtivParJust').value.trim();
+  const a = state.atividades.find(x => x.id === id);
+  if (!a) { toast('Selecione uma atividade', 'var(--red)'); return; }
+  if (!currentDay.atividadesParalisadas) currentDay.atividadesParalisadas = [];
+  currentDay.atividadesParalisadas.push({ id: a.id, desc: a.desc, just });
+  salvarDiarioDia(false);
+  fecharModal('modalAtivParalisada');
+  renderAtivParalisadas();
+  toast('Atividade paralisada registrada');
+}
+
+function salvarJustAtivParalisada(idx, valor) {
+  const lista = currentDay.atividadesParalisadas || [];
+  if (!lista[idx]) return;
+  lista[idx].just = valor;
+  salvarDiarioDia(false);
+}
+
+function removerAtivParalisada(idx) {
+  const lista = currentDay.atividadesParalisadas || [];
+  if (!lista[idx]) return;
+  confirmar(`Remover "${lista[idx].desc}" das atividades paralisadas?`, () => {
+    lista.splice(idx, 1);
+    salvarDiarioDia(false);
+    renderAtivParalisadas();
+  });
+}
+
 function renderEfetivoDia() {
   const cont = document.getElementById('efetivoList');
   cont.innerHTML = '';
@@ -2362,6 +2465,7 @@ function renderEquipDia() {
     row.querySelector('[data-edit]').onclick = () => abrirSeletorEquip(eq.id);
     cont.appendChild(row);
   });
+  renderVeiculosParados();
 }
 
 function abrirSeletorEquip(equipId) {
@@ -2556,6 +2660,7 @@ function renderVeiculosLevesDia() {
     row.querySelector('[data-vl-edit]').onclick = () => { if (ativo) abrirSeletorVL(v.id); };
     cont.appendChild(row);
   });
+  renderVeiculosParados();
 }
 
 function abrirSeletorVL(vlId) {
@@ -2637,6 +2742,39 @@ function removerVeiculoLeve(idx) {
     salvarDiarioDia(false);
     renderVeiculosLevesDia();
   });
+}
+
+// Campo oficial 19 do contrato do Diário: equipamentos e veículos leves
+// cadastrados que NÃO estão em uso hoje, com justificativa opcional.
+function renderVeiculosParados() {
+  const cont = document.getElementById('veiculosParadosList');
+  if (!cont) return;
+  const parados = currentDay.veiculosParados || {};
+  const equipsParados = state.equipamentos.filter(e => !currentDay.equipamentos[e.id]);
+  const vlParados = (state.veiculosFrota || []).filter(v => !(currentDay.veiculosLeves || []).some(x => x.frotaId === v.id));
+  if (!equipsParados.length && !vlParados.length) {
+    cont.innerHTML = '<div class="empty">Todos os equipamentos e veículos cadastrados estão em uso hoje</div>';
+    return;
+  }
+  const linha = (id, nome) => `
+    <div class="item-row" style="flex-direction:column;align-items:stretch;gap:6px">
+      <div class="item-name">🅿️ ${escapeHtml(nome)}</div>
+      <input type="text" placeholder="Motivo (manutenção, sem operador, sem demanda...)"
+        value="${escapeHtml(parados[id] || '')}" data-just-parado="${escapeHtml(id)}">
+    </div>`;
+  cont.innerHTML =
+    equipsParados.map(e => linha(e.id, `${e.numero ? e.numero + ' — ' : ''}${e.desc}`)).join('') +
+    vlParados.map(v => linha(v.id, `${escapeHtml(v.desc)}${v.placa ? ' · ' + v.placa : ''}`)).join('');
+  cont.querySelectorAll('[data-just-parado]').forEach(el => {
+    el.addEventListener('input', () => salvarJustParado(el.dataset.justParado, el.value));
+  });
+}
+
+function salvarJustParado(id, valor) {
+  if (!currentDay.veiculosParados) currentDay.veiculosParados = {};
+  if (valor.trim()) currentDay.veiculosParados[id] = valor;
+  else delete currentDay.veiculosParados[id];
+  salvarDiarioDia(false);
 }
 
 // EVENTOS
@@ -3461,8 +3599,12 @@ function buildRelatorio(day) {
       day.atividadesExtra.split('\n').filter(x => x.trim()).forEach(l => txt += `• ${l}\n`);
     }
   }
+  if ((day.atividadesParalisadas || []).length > 0) {
+    txt += `\n*⏸️ Atividades Paralisadas — ${day.atividadesParalisadas.length}*\n`;
+    day.atividadesParalisadas.forEach(p => txt += `• ${p.desc} — ${p.just || 'sem justificativa'}\n`);
+  }
   txt += `\n${divisor}\n\n`;
-  
+
   // Equipamentos
   const equipsAtivos = state.equipamentos.filter(e => day.equipamentos[e.id] && day.equipamentos[e.id].ativo);
   if (equipsAtivos.length > 0) {
@@ -3493,7 +3635,18 @@ function buildRelatorio(day) {
     }
     txt += `\n${divisor}\n\n`;
   }
-  
+
+  // Veículos/Equipamentos Parados — campo 19 do contrato
+  const equipsParados = state.equipamentos.filter(e => !day.equipamentos?.[e.id]);
+  const vlParados = (state.veiculosFrota || []).filter(v => !(day.veiculosLeves || []).some(x => x.frotaId === v.id));
+  if (equipsParados.length > 0 || vlParados.length > 0) {
+    const parados = day.veiculosParados || {};
+    txt += `*🅿️ Veículos/Equipamentos Parados*\n`;
+    equipsParados.forEach(e => txt += `• ${e.numero ? e.numero + ' — ' : ''}${e.desc}${parados[e.id] ? ': ' + parados[e.id] : ''}\n`);
+    vlParados.forEach(v => txt += `• ${v.desc}${v.placa ? ' (' + v.placa + ')' : ''}${parados[v.id] ? ': ' + parados[v.id] : ''}\n`);
+    txt += `\n${divisor}\n\n`;
+  }
+
   // Efetivo
   txt += `*📋 Efetivo – ${dataBR}*\n\n`;
   let total = 0;
