@@ -109,5 +109,40 @@ nuvem (exigiria um backend implantado — fora do escopo desta base local). O ca
 e o clique restaura” não foi exercitado fim a fim; só a condição de guarda (`gerAppVazio`) e o
 silêncio ao falhar foram confirmados.
 
-Restam da lista original de 7 áreas: **PDF do RDO** e **Assinatura digital** — ambas exigem decisão
-de arquitetura antes de implementar (ver `docs/Matriz_de_Paridade.md`).
+Restava da lista original de 7 áreas: **PDF do RDO** e **Assinatura digital**. Decisão do usuário:
+PDF via `html2canvas`+`jsPDF` (ambos embutidos, sem CDN); assinatura como registro visual informal,
+sem valor jurídico, com aviso explícito no próprio documento.
+
+## Validação — recuperação do Diário, áreas 3 e 4/7: PDF do RDO e assinatura digital (18/09/2026)
+
+Adicionado `src/vendor/jspdf-4.2.1.umd.min.js` (MIT, baixado do registro oficial do npm
+— `npm pack jspdf@4.2.1` —, licença conferida e copiada para `jspdf-4.2.1.LICENSE.txt`) e
+embutido apenas no módulo Diário (`build.py`), junto com o `html2canvas` que antes só existia no
+Check-in. O HTML gerado cresceu de ~590 KB para ~1,25 MB — custo aceito para um app de arquivo
+único offline, registrado aqui para não passar despercebido.
+
+Verificado:
+- `python3 build.py`, `node --check src/modules/diary-extra.js`, `node tests/domain.test.cjs`
+  (11/11): sem erro, sem regressão.
+- **Teste real em navegador (Playwright/Chromium), ponta a ponta, com arquivo de verdade gerado**:
+  1. Confirmado `html2canvas` e `window.jspdf.jsPDF` carregados dentro do iframe do Diário.
+  2. Preenchidos observações e RDO Nº pelos campos reais; preview do PDF aberto
+     (`gerAbrirPdfPreview`) mostra o conteúdo montado, incluindo o texto preenchido.
+  3. Caixa de assinatura clicável abre o modal do canvas. Tentativa de salvar sem desenhar nada
+     foi recusada ("Assine antes de salvar") — a mesma trava do aplicativo original.
+  4. Traço desenhado no canvas (eventos de ponteiro reais disparados sobre o elemento) e salvo:
+     modal fecha, a caixa de assinatura no preview passa a mostrar a imagem.
+  5. `gerGerarPdfArquivo()` executado de verdade: arquivo baixado, **281.466 bytes, com o
+     cabeçalho `%PDF-` de um PDF válido**.
+- Sem `pageerror` nem erro de console em todo o fluxo.
+
+**Escopo declarado, não uma limitação escondida:** o PDF usa os campos que o Gerenciamento coleta
+hoje; não reproduz as seções do original que dependem de um modelo de dados mais rico que a base
+atual não tem (clima por período com praticabilidade e mm de chuva, efetivo próprio vs.
+terceirizado, horímetro inicial/final por equipamento, status por atividade). Ver
+`docs/Matriz_de_Paridade.md` para o detalhe.
+
+Não executado: teste em dispositivo móvel/tablet real (o canvas de assinatura usa eventos de
+ponteiro, que cobrem mouse e toque, mas não foi testado em touch real); PDF com muitas fotos
+grandes (o corte de página é automático via divisão do canvas único em fatias de A4, não testado
+com conteúdo extremamente longo).

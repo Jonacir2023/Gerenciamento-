@@ -1051,6 +1051,8 @@
     letter-spacing: 0.5px;
   }
 </style>
+<script src="__VENDOR_HTML2CANVAS__"></script>
+<script src="__VENDOR_JSPDF__"></script>
 <!--GER-THEME-->
 <!--GER-COMMON-->
 </head>
@@ -1860,6 +1862,7 @@ const EMPTY_DAY = () => ({
   equipamentos: {},  // id -> {ativo, operadorMat, operadorNome, status, horimetro}
   veiculosLeves: [],  // [{id, desc, placa, motorista}]
   veiculosParados: {},  // id (equipamento ou veículo da frota) -> justificativa
+  assinaturas: {},  // slot ('apontador'|'fiscal') -> dataURL do desenho em canvas
   eventosSeguranca: [],
   eventosAmbiente: []
 });

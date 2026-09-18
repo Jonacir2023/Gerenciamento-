@@ -9,11 +9,13 @@ theme=(root/'src/modules/theme.css').read_text()
 common=(root/'src/modules/common.js').read_text()
 extra=(root/'src/modules/diary-extra.js').read_text()
 vendor=(root/'src/vendor/html2canvas-1.4.1.min.js').read_text()
+vendor_jspdf=(root/'src/vendor/jspdf-4.2.1.umd.min.js').read_text()
 documents={}
 for kind in ['checkin','pauta','diario']:
     html=(root/'src/modules'/f'{kind}.html').read_text()
     html=html.replace('<!--GER-THEME-->','<style>'+theme+'</style>').replace('<!--GER-COMMON-->','<script>'+common+'</script>')
     html=html.replace('<script src="__VENDOR_HTML2CANVAS__"></script>','<script>'+vendor+'</script>')
+    html=html.replace('<script src="__VENDOR_JSPDF__"></script>','<script>'+vendor_jspdf+'</script>')
     html=html.replace('<!--GER-DIARY-EXTRA-->','<script>'+extra+'</script>')
     documents[kind]=html
 modules='const MODULE_DOCUMENTS='+json.dumps(documents,ensure_ascii=True).replace('<','\\u003c')+';\n'+(root/'src/modules-host.js').read_text()

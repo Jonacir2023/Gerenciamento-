@@ -27,9 +27,20 @@ mais 4 bugs do próprio aplicativo original corrigidos ao longo da adaptação. 
 crítico — o `diario-obras-v4.html` enviado tem hash diferente do que gerou o módulo atual (179 vs
 113 funções); usuário confirmou que o arquivo enviado é a fonte de verdade.
 
-Das 7 áreas do Diário identificadas como ausentes, recuperadas e testadas em navegador nesta
-rodada: Atividades Paralisadas + Veículos/Equipamentos Parados (campo oficial 19), seleção de
-apontador por cadastro, fotos com legenda e compressão, e checagem automática de backup na nuvem
-ao carregar (sem nunca restaurar sem clique explícito). Uma área ("Perguntar à IA" em modal) foi
-avaliada e decidida como já equivalente ao que existia. Restam **PDF do RDO** e **Assinatura
-digital** — ambas aguardando decisão de arquitetura antes de implementar.
+Das 7 áreas do Diário identificadas como ausentes, todas as 7 foram concluídas nesta rodada
+(estendida ao longo do dia): Atividades Paralisadas + Veículos/Equipamentos Parados (campo oficial
+19), seleção de apontador por cadastro, fotos com legenda e compressão, checagem automática de
+backup na nuvem ao carregar (sem nunca restaurar sem clique explícito), PDF do RDO
+(`html2canvas`+`jsPDF` embutidos, por decisão do usuário) e assinatura digital em canvas (registro
+visual informal, sem valor jurídico, por decisão do usuário). Uma área ("Perguntar à IA" em modal)
+foi avaliada e decidida como já equivalente ao que existia, sem precisar de mudança.
+
+O PDF do RDO usa só os campos que o Gerenciamento coleta hoje; não reproduz seções do original que
+dependem de um modelo de dados mais rico (clima por período, efetivo terceirizado, horímetro
+inicial/final, status por atividade) — ver `docs/Matriz_de_Paridade.md`. O HTML gerado cresceu de
+~590 KB para ~1,25 MB por causa das duas bibliotecas embutidas (html2canvas + jsPDF, ambas MIT,
+sem CDN).
+
+Próximo incremento sugerido: revisitar o modelo de dados do Diário para as seções do PDF ainda não
+cobertas, ou avançar para as pendências dos módulos Pauta/Check-in listadas na atualização anterior
+(matriz de paridade completa por campo, backend real, autenticação/RBAC).

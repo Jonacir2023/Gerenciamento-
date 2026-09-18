@@ -165,8 +165,8 @@ equivalente, nem com outro nome. Ambos recuperados e testados nesta sessão.
 |---|---|
 | 1. Atividades Paralisadas + Veículos/Equipamentos Parados (campo 19) | ✅ Recuperado e testado em navegador — ver `docs/VALIDACAO.md` |
 | 2. Fluxo de seleção de apontador (sugestão/confirmação) | ✅ Recuperado e testado — `<select>` com colaboradores cujo cargo/categoria contém "apontador", igual ao original (era campo de texto livre) |
-| 3. PDF do RDO | Pendente — decisão de arquitetura necessária antes de implementar |
-| 4. Assinatura digital | Pendente — decisão sobre o que precisa comprovar antes de implementar (ver `Prompt_Global_Gerenciamento.md` §7) |
+| 3. PDF do RDO | ✅ Recuperado e testado — `html2canvas`+`jsPDF` embutidos (decisão do usuário), PDF real gerado e baixado no smoke test |
+| 4. Assinatura digital | ✅ Recuperado e testado — canvas de desenho, registro visual informal sem valor jurídico (decisão do usuário), aviso explícito no próprio PDF |
 | 5. Fotos — legenda e compressão | ✅ Recuperado e testado — mesmos parâmetros do original (máx. 1280px, JPEG 72%); ajuda a evitar estouro de cota |
 | 6. Backup na nuvem — checagem automática ao carregar | ✅ Recuperado e testado — só oferece restaurar quando o aparelho está vazio, nunca restaura sem clique explícito |
 | 7. Perguntar à IA — modal dedicado | **Não recuperado, por decisão:** o original é um modal envolvendo o mesmo fluxo (pergunta → fetch → resposta) que o Gerenciamento já tinha, inline, desde antes desta sessão. Sem ganho funcional real em portar para modal; ver nota abaixo. |
@@ -175,7 +175,20 @@ equivalente, nem com outro nome. Ambos recuperados e testados nesta sessão.
 
 `abrirModalPerguntar`/`enviarPergunta` do original só abrem um modal com um campo de pergunta, loading e resposta — exatamente o que `ger-question`/`ger-ask`/`ger-answer` já fazem, inline, no Gerenciamento (com `gerAction` cobrindo o loading via desabilitar o botão). Portar para modal seria trabalho sem ganho funcional. Marcado como resolvido por equivalência, não como pendência.
 
-### Status final das 7 áreas: 6 recuperadas e testadas, 1 decidida como já equivalente. PDF e Assinatura (itens 3 e 4) ficaram para depois de decisão de arquitetura — ver conversa com o usuário.
+### Status final das 7 áreas: todas as 7 concluídas
+
+6 recuperadas e testadas em navegador (Atividades Paralisadas + Veículos/Equipamentos Parados,
+Apontador, Fotos, Backup automático, PDF do RDO, Assinatura digital); 1 decidida como já
+equivalente ao que existia (Perguntar à IA).
+
+**Escopo do PDF do RDO, para não superestimar o que foi entregue:** o PDF é montado com os campos
+que o Gerenciamento realmente coleta hoje — não reproduz seções do PDF original que dependem de
+dados que a base atual não tem: clima detalhado por 4 períodos do dia com praticabilidade e mm de
+chuva (`day.tempo{suf}`/`prat{suf}`), separação de efetivo próprio vs. terceirizado
+(`c.empresa`), horímetro como par inicial/final por equipamento (`day.horimetros[id].{ini,fim}`,
+hoje só existe um valor único), e status por atividade (`day.atividadesStatus`, concluída/andamento
+— hoje não existe). Recuperar essas seções exigiria primeiro estender o modelo de dados do Diário,
+não é um trabalho de "portar tela".
 
 ---
 

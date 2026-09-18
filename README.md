@@ -54,6 +54,8 @@ node tests/domain.test.cjs
 
 Requer Python 3 para geração e Node.js 20 ou posterior para testes (não necessários para abrir o HTML). Não requer npm, instalação de bibliotecas, CDN ou conexão de rede. Não existem dependências de pacotes externos e portanto não há lockfile de pacotes a fabricar.
 
+Duas bibliotecas de terceiros vêm embutidas em `src/vendor/` (texto puro no repositório, incorporadas ao HTML final por `build.py`, sem CDN em execução): `html2canvas` 1.4.1 (captura de imagem do Check-in e páginas do PDF do Diário) e `jsPDF` 4.2.1 (montagem do PDF do RDO). Ambas MIT, com o texto da licença ao lado de cada arquivo (`*.LICENSE.txt`).
+
 ## GitHub e implantação
 
 Foi inicializado apenas um repositório Git novo e local, sem remotos. **Nenhum repositório foi criado ou alterado no GitHub, nem houve publicação.** O usuário pediu independência caso o projeto seja colocado no GitHub; isso não deve ser confundido com comprovação de publicação.
