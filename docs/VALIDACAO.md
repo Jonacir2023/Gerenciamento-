@@ -76,3 +76,38 @@ Verificado:
 
 Não executado: as outras 6 áreas da lista (apontador, PDF, assinatura, fotos com legenda/compressão,
 backup automático ao carregar, modal de IA) continuam pendentes, sem mudança nesta rodada.
+
+## Validação — recuperação do Diário, áreas 2, 5, 6 e 7/7 (18/09/2026)
+
+Continuação da rodada anterior. Recuperadas: apontador (seleção por cadastro em vez de texto
+livre), fotos (legenda + compressão), backup na nuvem (checagem automática ao carregar). A área 7
+(modal de "Perguntar à IA") foi avaliada e decidida como já equivalente — ver `Matriz_de_Paridade.md`.
+
+Verificado:
+- `python3 build.py`, `node --check` em todos os arquivos tocados, `node tests/domain.test.cjs`
+  (11/11): sem erro, sem regressão.
+- **Teste real em navegador (Playwright/Chromium)**, pelo fluxo de UI real (cadastro de
+  colaborador pelo modal de verdade, não injeção direta de estado):
+  1. Cadastrado colaborador com função "Apontador" via `abrirModalColaborador`/`salvarColaborador`
+     reais. O `<select>` do campo Apontador no Diário passou a listar esse colaborador
+     (`999 – Fulano de Tal`), selecioná-lo persiste em `currentDay.apontador`, e o relatório de
+     texto (`gerarRelatorio()`) passou a conter "Apontador: 999 – Fulano de Tal".
+  2. Upload de uma imagem PNG de teste pelo campo real `#ger-fotos`: a foto salva ficou com
+     `dataUrl` no formato `data:image/jpeg` (confirma a compressão — o arquivo original era PNG),
+     e o campo de legenda, preenchido e disparado via evento `change`, apareceu no relatório
+     ("Fachada bloco A").
+  3. `gerAppVazio()` chamado com os dados de semente presentes retornou `false` (correto — não
+     deveria oferecer restauração automática havendo dados locais), e chamar
+     `gerChecarRestauracaoAutomatica()` sem nenhum serviço de nuvem configurado não lançou exceção
+     nem exibiu o banner (a falha de rede é engolida silenciosamente por design, sem incomodar o
+     usuário numa verificação em segundo plano).
+  4. Campo de pergunta à IA (`ger-question`/`ger-ask`) confirmado presente e sem regressão.
+- Sem `pageerror` em nenhum passo.
+
+Não executado: cenário real com serviço Apps Script configurado e um backup de fato disponível na
+nuvem (exigiria um backend implantado — fora do escopo desta base local). O caminho “banner aparece
+e o clique restaura” não foi exercitado fim a fim; só a condição de guarda (`gerAppVazio`) e o
+silêncio ao falhar foram confirmados.
+
+Restam da lista original de 7 áreas: **PDF do RDO** e **Assinatura digital** — ambas exigem decisão
+de arquitetura antes de implementar (ver `docs/Matriz_de_Paridade.md`).
