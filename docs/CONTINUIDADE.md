@@ -44,3 +44,26 @@ sem CDN).
 Próximo incremento sugerido: revisitar o modelo de dados do Diário para as seções do PDF ainda não
 cobertas, ou avançar para as pendências dos módulos Pauta/Check-in listadas na atualização anterior
 (matriz de paridade completa por campo, backend real, autenticação/RBAC).
+
+## Atualização — 18/09/2026 (3ª rodada): fundação de backend real (Supabase)
+
+Criado projeto Supabase próprio e exclusivo (`gerenciamento`, id `gfoyxquyumvvkikbuylw`, região
+`sa-east-1`), na mesma organização do usuário mas sem tocar no projeto `P3` já existente. Schema,
+RLS e testes de isolamento documentados em `docs/Backend_Supabase.md`; migrações versionadas em
+`supabase/migrations/`.
+
+Testado de verdade via SQL simulando usuários (não é teoria): usuário vinculado só à Obra A não lê
+nem escreve na Obra B; aprovar RDO exige papel gestor/engenheiro (apontador é barrado pela própria
+política de RLS); diário aprovado é imutável mesmo para quem aprovou (correção só por nova revisão).
+Segurança (`get_advisors`) limpa depois de mover os helpers de autorização para fora do schema
+exposto por API — um engano no meio do caminho (revogar `EXECUTE` demais e quebrar a própria RLS)
+foi corrigido e fica registrado como migração própria, não escondido.
+
+**Decisão arquitetural registrada:** Supabase passa a ser a fonte de verdade proposta pelo Prompt
+Global para dados estruturados/permissões/auditoria. O Apps Script (`server/Gerenciamento.gs`)
+continua só como ponte para planilha/Drive/backup, sem crescer para reimplementar RBAC.
+
+**Isto é só a fundação.** O frontend (`src/`) continua gravando em `localStorage` como antes —
+nenhuma tela foi ligada ao banco novo ainda. Migrar de fato (cliente Supabase no navegador,
+autenticação, trocar `gerRequest`/`window.__storage` por chamadas autenticadas com fila offline) é
+o próximo trabalho real, não uma tarefa de teste.
